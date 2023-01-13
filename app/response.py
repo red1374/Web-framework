@@ -42,3 +42,10 @@ class Response:
     def update_headers(self, headers: dict):
         """ Update response headers """
         self.headers.update(headers)
+
+    def redirect(self, url, status_code: int = 301):
+        """ Redirect to a new url """
+        self.status_code = status_code
+        self.update_headers({
+            'Location': url
+        })
