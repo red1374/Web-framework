@@ -13,7 +13,6 @@ class HomePage(View):
         body = build_template(
             request, {
                 'time': str(datetime.now()),
-                'title': 'Home page',
             },
             'main.html'
         )
@@ -36,7 +35,6 @@ class EpicMath(View):
 class Hello(View):
     def get(self, request: Request, *args, **kwargs) -> Response:
         body = build_template(request, {
-            'title': 'Hello guest page',
             'name': 'Anonimus'
         }, 'hello.html')
         return Response(request, body=body)
@@ -62,9 +60,7 @@ class SimplePage(View):
     """ View for simple text page """
     def get(self, request: Request, *args, **kwargs) -> Response:
         if self.template_exists(request):
-            body = build_template(request, {
-                'title': 'Text page',
-            }, f'{request.url}.html')
+            body = build_template(request, {}, f'{request.url}.html')
 
             return Response(request, status_code=200, body=body)
         else:
@@ -92,10 +88,8 @@ class ContactsPage(View):
         success = success[0] if isinstance(success, list) else ""
 
         body = build_template(request, {
-            'title': 'Contacts page',
             'form_status': 'success' if success == 'Y' else ''
         }, 'contacts.html')
-        print(request.GET)
         return Response(request, body=body)
 
     def post(self, request: Request, *args, **kwargs) -> Response:

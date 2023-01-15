@@ -33,8 +33,4 @@ def build_template(request: Request, context: dict, template_name: str) -> str:
 
     context['extra'] = request.extra
 
-    return ''.join([
-        engine.build(context, 'header.html'),
-        engine.build(context, template_name),
-        engine.build(context, 'footer.html'),
-    ])
+    return engine.build(context, template_name)
