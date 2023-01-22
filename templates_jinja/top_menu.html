@@ -1,0 +1,9 @@
+{% if extra.top_menu %}
+<ul class="nav nav-pills">
+    {% for item in extra.top_menu %}
+         <li class="nav-item">
+             <a href="{{ item.link }}" class="nav-link{% if item.link == extra.current_url %} active{% endif %}" aria-current="page">{{ item.title }}</a>
+         </li>
+    {% endfor %}
+</ul>
+{% endif %}
