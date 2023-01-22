@@ -1,10 +1,14 @@
 from urllib.parse import parse_qs
+import re
+
+EXTRA_PARAMS = re.compile(r'/(?P<id>\d+)/')
 
 
 class Request:
     __slots__ = ('environ', 'GET', 'POST', 'settings', 'extra', 'url')
 
     """ Class to work with requests params """
+
     def __init__(self, environ: dict, settings: dict):
         self.environ = environ
         self.GET = self.build_get_params_dict(environ['QUERY_STRING'])
@@ -12,6 +16,7 @@ class Request:
         self.settings = settings
         self.extra = {}
         self.url = self._get_url()
+        self.get_extra_params()
 
     def __getattr__(self, item):
         return self.extra.get(item)
@@ -33,3 +38,9 @@ class Request:
     def build_post_params_dict(self, raw_bytes: bytes):
         """ Getting POST params from the request """
         return parse_qs(raw_bytes.decode('utf-8'))
+
+    def get_extra_params(self):
+        match = re.search(EXTRA_PARAMS, self.url + '/')
+        if match:
+            for key, value in match.groupdict().items():
+                self.extra[key] = value
