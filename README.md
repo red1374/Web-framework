@@ -30,3 +30,10 @@ eth0:
 </code>
 
 <code># 172.31.156.253:8000 </code>
+
+---
+III. There is two more WSGI applications to run:
+- Fake application. On any request returns a string **Hello from Fake** 
+<code>gunicorn -b 0.0.0.0:8000 main:fake_app</code>
+- Logger application.  Returns short request information:
+<code>gunicorn -b 0.0.0.0:8000 main:logger_app</code>

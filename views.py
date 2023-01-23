@@ -8,11 +8,13 @@ from app.response import Response
 from app.view import View
 # from app.template_engine import build_template
 from app.jinja_engine import build_template
+from patterns.structural_patterns import Debug, AppRoute
 
 from patterns.сreational_patterns import Engine, Logger
 
 site = Engine()
 logger = Logger('views')
+routes = []
 
 # -- ToDo: Remove this temp solution after db integration
 if not site.categories:
@@ -20,7 +22,9 @@ if not site.categories:
     site.categories.append(new_category)
 
 
+@AppRoute(routes=routes, url='^$')
 class HomePage(View):
+    @Debug(name='Home_page')
     def get(self, request: Request, *args, **kwargs) -> Response:
         body = build_template(
             request, {
@@ -65,9 +69,11 @@ class SimplePage(View):
         return os.path.isfile(template_path)
 
 
+@AppRoute(routes=routes, url='^/contacts')
 class ContactsPage(View):
     MESSAGES_DIR = 'messages'
 
+    @Debug(name='Contacts_page:get')
     def get(self, request: Request, *args, **kwargs) -> Response:
         success = request.GET.get('success')
         success = success[0] if isinstance(success, list) else ""
@@ -77,6 +83,7 @@ class ContactsPage(View):
         }, 'contacts.html')
         return Response(request, body=body)
 
+    @Debug(name='Contacts_page:post')
     def post(self, request: Request, *args, **kwargs) -> Response:
         form = self.prepare_post_data(request)
 

@@ -3,9 +3,9 @@ from views import HomePage, ContactsPage, SimplePage, Courses, CreateCourse, Pro
     CoursePage
 
 urlpatterns = [
-    Url('^$', HomePage),
+    # Url('^$', HomePage),
     Url('^/about', SimplePage),
-    Url('^/contacts', ContactsPage),
+    # Url('^/contacts', ContactsPage),
     Url('^/programs/add', CreateProgram),
     Url('^/programs/\d+', Courses),
     Url('^/programs', ProgramsList),

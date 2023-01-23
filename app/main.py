@@ -115,3 +115,36 @@ class App:
     def _apply_middleware_to_response(self, response: Response):
         for i in self.middlewares:
             i().to_response(response)
+
+
+class FakeApp:
+    """ Fake WSGI application """
+    def __init__(self):
+        pass
+
+    def __call__(self, environ, start_response, **kwargs):
+        status = '200 OK'
+        response_headers = [('Content-type', 'text/plain')]
+        response_body = b"Hello from Fake"
+
+        start_response(status, response_headers)
+
+        return [response_body]
+
+
+class LoggerApp:
+    """ WSGI application that prints request information"""
+    def __init__(self):
+        pass
+
+    def __call__(self, environ, start_response, **kwargs):
+        status = '200 OK'
+        response_headers = [('Content-type', 'text/plain')]
+        response_body = 'Request information:\n'
+        response_body += f'   Method: {environ["REQUEST_METHOD"]}\n'
+        response_body += f'   Request URI: {environ["PATH_INFO"]}\n'
+        response_body += f'   Get params: {environ["QUERY_STRING"]}\n'
+
+        start_response(status, response_headers)
+
+        return [response_body.encode('utf-8')]
