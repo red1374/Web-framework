@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block body %}
+<h1>{{ title }}</h1>
+<br>
+<a class="btn btn-primary mb-5" href="/create_course/{{ url_param }}">Create a course</a>
+{% if objects_list %}
+<p>Select a course you like</p>
+<ol>
+    {% for course in objects_list %}
+    <li>
+        <a href="/course/{{ course.id }}/">{{ course.name }}</a> [<a class="text-warning" href="/copy-course/{{ course.id }}/">copy</a>]
+    </li>
+    {% endfor %}
+</ol>
+{% else %}
+<p class="alert alert-warning">No courses found</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}New course{% endblock %}
+{% block body %}
+<h1>Create new course</h1>
+<br>
+<form action="" method="post" class="row g-3 col-md-6 mt-5">
+    {% if form_status == 'error' %}
+    <div class="alert alert-danger" role="alert">{{ form_msg }}</div>
+    {% endif %}
+    <div class="col-md-12">
+        <label class="form-label">Course name</label>
+        <input type="text" name="name" class="form-control" placeholder="Python for beginners"
+               value="{% if form_data %}{{ form_data.name }}{% endif %}">
+    </div>
+    <div class="col-md-6">
+        <label class="form-label">Course type</label>
+        <select name="type" class="form-select">
+            <option value="0"> -- None -- </option>
+            {% if types_list %}
+            {% for type in types_list %}
+            <option {% if type.code == type %}selected="selected" {% endif%}value="{{ type.code }}">{{ type.name }}</option>
+            {% endfor %}
+            {% endif %}
+        </select>
+    </div>
+    <div class="col-md-6">
+        <label class="form-label">Program name</label>
+        <select name="category_id" class="form-select">
+            <option value="0"> -- None -- </option>
+            {% if objects_list %}
+            {% for program in objects_list %}
+            <option {% if program.id == id %}selected="selected" {% endif%}value="{{ program.id }}">{{ program.name }}</option>
+            {% endfor %}
+            {% endif %}
+        </select>
+    </div>
+    <div class="col-12">
+        <button type="submit" class="btn btn-primary">Create</button>
+    </div>
+</form>
+{% endblock %}
