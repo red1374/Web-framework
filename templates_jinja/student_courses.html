@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block body %}
+<h1>Courses list of {{ student.name }}</h1>
+<br>
+<form action="" method="post" class="row g-3 col-md-6 mt-5">
+    {% if status == 'error' %}
+    <div class="alert alert-danger" role="alert">{{ message }}</div>
+    {% endif %}
+    <div class="col-md-6">
+        <label class="form-label">Select courses</label>
+        <select name="course_id" class="form-select" multiple>
+            {% if courses_list %}
+            {% for course in courses_list %}
+            <option {% if course.id in courses_ids %}selected="selected" {% endif%}value="{{ course.id }}">{{ course.name }}</option>
+            {% endfor %}
+            {% endif %}
+        </select>
+    </div>
+    <div class="col-12">
+        <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+</form>
+{% endblock %}

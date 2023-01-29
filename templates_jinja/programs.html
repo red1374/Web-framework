@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block body %}
+<h1>{{ title }}</h1>
+<br>
+<div class="d-flex justify-content-around">
+    <a class="btn btn-success mb-5" href="/programs/add/">Create a program</a>
+    <a class="btn btn-primary mb-5" href="/create_course/{{ url_param }}">Create a course</a>
+</div>
+
+{% if objects_list %}
+<p>Select a program you like</p>
+<ol>
+    {% for program in objects_list %}
+    <li>
+        <a href="/programs/{{ program.id }}/">{{ program.name }}</a>
+    </li>
+    {% endfor %}
+</ol>
+{% else %}
+<p class="alert alert-warning">No programs found</p>
+{% endif %}
+{% endblock %}
