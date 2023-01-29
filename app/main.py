@@ -106,7 +106,8 @@ class App:
         if not hasattr(view, method):
             raise NotAllowedException
 
-        return getattr(view, method)(view, request)
+        view_object = view(request)
+        return getattr(view_object, method)()
 
     def _apply_middleware_to_request(self, request: Request):
         for i in self.middlewares:

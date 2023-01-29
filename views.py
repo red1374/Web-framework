@@ -1,19 +1,19 @@
 import os
 from datetime import datetime
 
-from gunicorn.http import Request
-
+from app.logger import Logger
 from app.request import Request
 from app.response import Response
-from app.view import View
-# from app.template_engine import build_template
+from app.view import View, ListView, TemplateView, CreateView
 from app.jinja_engine import build_template
+from patterns.behavioral_patterns import BaseSerializer, Notifier
 from patterns.structural_patterns import Debug, AppRoute
 
-from patterns.сreational_patterns import Engine, Logger
+from patterns.сreational_patterns import Engine
 
 site = Engine()
 logger = Logger('views')
+notifyer = Notifier()
 routes = []
 
 # -- ToDo: Remove this temp solution after db integration
@@ -21,333 +21,276 @@ if not site.categories:
     new_category = site.create_category('Test', None)
     site.categories.append(new_category)
 
+if not site.courses:
+    new_course = site.create_course('record', 'Test course 1', new_category)
+    new_course.observers.append(notifyer)
+    site.courses.append(new_course)
+    new_course = site.create_course('record', 'Test course 2', new_category)
+    new_course.observers.append(notifyer)
+    site.courses.append(new_course)
+
+if not site.students:
+    new_student = site.create_user('student', 'Test student')
+    site.students.append(new_student)
+# --------------------------------------------------------
+
 
 @AppRoute(routes=routes, url='^$')
-class HomePage(View):
+class HomePageTemplateView(TemplateView):
+    template_name = 'main.html'
+
     @Debug(name='Home_page')
-    def get(self, request: Request, *args, **kwargs) -> Response:
-        body = build_template(
-            request, {
-                'time': str(datetime.now()),
-            },
-            'main.html'
-        )
-        return Response(request, body=body)
+    def set_context_data(self):
+        self.context = {
+            'time': datetime.now(),
+        }
 
 
 class PageNotFound(View):
     """ View for 404 page """
-    def get(self, request: Request, *args, **kwargs) -> Response:
-        body = build_template(request, {
+
+    def get(self, *args, **kwargs) -> Response:
+        body = build_template(self.request, {
             'title': 'Page not found',
         }, '404.html')
-        return Response(request, status_code=404, body=body)
+        return Response(self.request, status_code=404, body=body)
 
 
 class SimplePage(View):
     """ View for simple text page """
-    def get(self, request: Request, *args, **kwargs) -> Response:
-        if self.template_exists(request):
-            body = build_template(request, {}, f'{request.url}.html')
 
-            logger.log('info', f'Simple page rendered: {request.url}')
-            return Response(request, status_code=200, body=body)
+    def get(self, *args, **kwargs) -> Response:
+        if self.template_exists():
+            body = build_template(self.request, {}, f'{self.request.url}.html')
+
+            logger.log('info', f'Simple page rendered: {self.request.url}')
+            return Response(self.request, status_code=200, body=body)
         else:
             # -- Return 404-page if template file not found ---
-            view = PageNotFound
-            return view.get(view, request)
+            view_object = PageNotFound(self.request)
+            return view_object.get()
 
-    @staticmethod
-    def template_exists(request: Request) -> bool:
+    def template_exists(self) -> bool:
         """ Check if template file exists """
         template_path = os.path.join(
-            request.settings.get('BASE_DIR'),
-            request.settings.get('TEMPLATE_DIR'),
-            f'{request.url}.html'
+            self.request.settings.get('BASE_DIR'),
+            self.request.settings.get('TEMPLATE_DIR'),
+            f'{self.request.url}.html'
         )
 
         return os.path.isfile(template_path)
 
 
 @AppRoute(routes=routes, url='^/contacts')
-class ContactsPage(View):
+class ContactsPageView(CreateView):
+    template_name = 'contacts.html'
     MESSAGES_DIR = 'messages'
 
-    @Debug(name='Contacts_page:get')
-    def get(self, request: Request, *args, **kwargs) -> Response:
-        success = request.GET.get('success')
+    def set_context_data(self):
+        success = self.request.GET.get('success')
         success = success[0] if isinstance(success, list) else ""
 
-        body = build_template(request, {
-            'form_status': 'success' if success == 'Y' else ''
-        }, 'contacts.html')
-        return Response(request, body=body)
+        self.context = {
+            'title': 'Contact us',
+            'status': 'success' if success == 'Y' else ''
+        }
 
-    @Debug(name='Contacts_page:post')
-    def post(self, request: Request, *args, **kwargs) -> Response:
-        form = self.prepare_post_data(request)
+        if not self.request.is_post:
+            self.result['status'] = ''
+        if success == 'Y' and not self.request.is_post:
+            self.result['status'] = 'success'
+        self.update_context_data(self.result)
 
-        body = build_template(request, {
-            'form_data': form.get('data'),
-            'form_status': form.get('status'),
-            'form_msg': form.get('message'),
-        }, 'contacts.html')
-        response = Response(request, body=body)
+    @Debug(name='Contacts_page:create_obj')
+    def create_obj(self, data):
+        """ Process contacts page data """
+        has_error = False
+        self.result['data']['topic'] = data.get('topic') if data.get('topic') else ''
+        self.result['data']['name'] = data.get('name') if data.get('name') else ''
+        self.result['data']['email'] = data.get('email') if data.get('email') else ''
+        self.result['data']['text'] = data.get('text') if data.get('text') else ''
 
-        if form.get('status') == 'success':
+        if not self.result['data']['topic'] or not self.result['data']['name'] or \
+                not self.result['data']['email'] or not self.result['data']['text']:
+            has_error = True
+
+        if not has_error:
             logger.log('debug', 'Save new message')
-            self.save_result(self, request, form.get('data'))
+            self.save_result(self.result['data'])
+            self.redirect_url = '/contacts/?success=Y'
 
-        return response
-
-    @staticmethod
-    def prepare_post_data(request: Request) -> dict:
-        result = {
-            'status': 'error',
-            'data': {
-            },
-            'message': 'Fill in all the fields!'
-        }
-
-        raw_email = request.POST.get('email')
-        email = raw_email[0].strip() if raw_email else ''
-
-        raw_text = request.POST.get('text')
-        text = raw_text[0].strip() if raw_text else ''
-
-        raw_topic = request.POST.get('topic')
-        topic = raw_topic[0].strip() if raw_topic else ''
-
-        if email and text and topic:
-            result['status'] = 'success'
-            result['message'] = 'ok!'
-
-        result['data'] = {
-            'topic': topic,
-            'email': email,
-            'text': text
-        }
-
-        return result
-
-    def save_result(self, request: Request, data: dict):
+    @Debug(name='Contacts_page:save_result')
+    def save_result(self, data: dict):
         file_name = f'message_{datetime.now().strftime("%Y.%m.%d_%H_%M_%s")}.txt'
-        file_path = os.path.join(request.settings.get('BASE_DIR'), self.MESSAGES_DIR, file_name)
+        file_path = os.path.join(self.request.settings.get('BASE_DIR'), self.MESSAGES_DIR, file_name)
 
-        message = f'Topic: {data.get("topic")}\n' \
+        message = f'Name: {data.get("name")}\n' \
+                  f'Topic: {data.get("topic")}\n' \
                   f'E-mail: {data.get("email")}\n' \
                   f'Text: {data.get("text")}\n'
         with open(file_path, 'w') as f:
             f.write(message)
 
 
-class ProgramsList(View):
-    """ View for programs list page """
-
-    def get(self, request: Request, *args, **kwargs) -> Response:
-        category_id = int(request.extra.get('id')) if request.extra.get('id') else None
-        category = site.find_category_by_id(category_id)
-        if category_id:
-            categories = list(
-                filter(lambda item: item.category.id == category_id if item.category else False, site.categories))
-        else:
-            categories = [item for item in site.categories if item.category is None]
-
-        body = build_template(request, {
-            'objects_list': categories,
-            'title': category.name if category else 'Programs',
-            'url_param': f'{category_id}/' if category_id else '',
-        }, f'programs.html')
-
-        return Response(request, body=body)
-
-
-class CreateProgram(View):
-    """ View for create program page """
-
-    def get(self, request: Request, *args, **kwargs) -> Response:
-        """ Get program creating form """
-        categories = [item for item in site.categories if item.category is None]
-
-        body = build_template(request, {
-            'objects_list': categories,
-        }, f'create_program.html')
-
-        return Response(request, body=body)
-
-    def post(self, request: Request, *args, **kwargs) -> Response:
-        """ Create new program method """
-        categories = [item for item in site.categories if item.category is None]
-
-        form = self.process_data(request)
-
-        body = build_template(request, {
-            'objects_list': categories,
-            'form_status': form.get('status'),
-            'form_msg': form.get('message'),
-            'form_data': form.get('data'),
-        }, f'create_program.html')
-        response = Response(request, body=body)
-
-        if form.get('status') == 'success':
-            new_category = site.create_category(form['data'].get('name'), form['data'].get('category'))
-            site.categories.append(new_category)
-            logger.log('debug', f'Create new program: {new_category.name}')
-            response.redirect('/programs/')
-
-        return response
-
-    @staticmethod
-    def process_data(request: Request) -> dict:
-        """ Process program data """
-        result = {
-            'status': 'error',
-            'data': {
-            },
-            'message': 'Fill in all the fields!'
-        }
-        data = {}
-
-        raw_name = request.POST.get('name')
-        data['name'] = raw_name[0].strip() if raw_name else ''
-        if data['name']:
-            result['message'] = 'Ok!'
-            result['status'] = 'success'
-
-        raw_category_id = request.POST.get('category_id')
-        data['category_id'] = int(raw_category_id[0].strip()) if raw_category_id else 0
-
-        data['category'] = None
-        if data['category_id']:
-            data['category'] = site.find_category_by_id(data['category_id'])
-
-        if site.find_category_by_name_and_parent(data['name'], data['category_id']):
-            result['message'] = 'Program with this name already exist in this category'
-            result['status'] = 'error'
-
-        result['data'] = data
-
-        return result
-
-
-class Courses(View):
+@AppRoute(routes=routes, url='^/programs/\d+')
+class CoursesListView(ListView):
     """ View for courses list page """
 
-    def get(self, request: Request, *args, **kwargs) -> Response:
-        category_id = int(request.extra.get('id')) if request.extra.get('id') else None
+    template_name = 'courses.html'
+
+    def set_context_data(self):
+        category_id = int(self.request.extra.get('id')) \
+            if self.request.extra.get('id') else None
         category = site.find_category_by_id(category_id)
 
-        body = build_template(request, {
-            'objects_list': category.courses if category else None,
-            'title': 'Courses' + (' of program ' + category.name if category else ''),
-            'id': category.id if category else None,
-            'url_param': f'{category_id}/' if category_id else '',
-        }, f'courses.html')
-
-        response = Response(request, status_code=200, body=body)
         if category is None:
-            response.redirect('/404/')
+            self.redirect_url = '/404/'
+            return {}
 
-        return response
-
-
-class CreateCourse(View):
-    """ Create course view """
-    def get(self, request: Request, *args, **kwargs) -> Response:
-        """ Get course creating form """
-        categories = [item for item in site.categories if item.category is None]
-        category_id = int(request.extra.get('id')) if request.extra.get('id') else None
-        body = build_template(request, {
-            'objects_list': categories,
-            'id': category_id,
-            'types_list': site.get_course_types()
-        }, f'create_course.html')
-        return Response(request, body=body)
-
-    def post(self, request: Request, *args, **kwargs) -> Response:
-        """ Create new course method """
-
-        category_id = int(request.extra.get('id')) if request.extra.get('id') else None
-        categories = [item for item in site.categories if item.category is None]
-
-        form = self.process_data(request)
-        category = site.find_category_by_id(form['data'].get('category_id'))
-
-        status = form.get('status') if category else 'error'
-        message = form.get('message') if category else 'Wrong program id'
-
-        body = build_template(request, {
-            'objects_list': categories,
-            'form_status': status,
-            'form_msg': message,
-            'form_data': form.get('data'),
-            'types_list': site.get_course_types()
-        }, f'create_course.html')
-        response = Response(request, body=body)
-
-        if status == 'success':
-            new_course = site.create_course(
-                form['data'].get('type'),
-                form['data'].get('name'),
-                category)
-
-            site.courses.append(new_course)
-            logger.log('debug', f'Create new course: {new_course.name}')
-
-            if category_id:
-                response.redirect(f'/programs/{category_id}/')
-            else:
-                response.redirect('/programs/')
-
-        return response
-
-    @staticmethod
-    def process_data(request: Request) -> dict:
-        """ Process course data """
-        result = {
-            'status': 'error',
-            'data': {
-            },
-            'message': 'Fill in all the fields!'
+        self.set_queryset(category.courses if category else None)
+        self.context = {
+            'title': 'Courses' + (' of program ' + category.name if category else ''),
+            'url_param': f'{category_id}/' if category_id else '',
+            'id': category.id if category else None,
         }
-        data = {}
 
-        raw_name = request.POST.get('name')
-        data['name'] = raw_name[0].strip() if raw_name else ''
-        if data['name']:
-            result['message'] = 'Ok!'
-            result['status'] = 'success'
 
-        raw_category_id = request.POST.get('category_id')
-        data['category_id'] = int(raw_category_id[0].strip()) if raw_category_id else 0
+@AppRoute(routes=routes, url='^/create_course')
+class CreateCourseCreateView(CreateView):
+    """ Create course view """
+    template_name = "create_course.html"
 
-        data['category'] = None
-        if data['category_id']:
-            data['category'] = site.find_category_by_id(data['category_id'])
+    def set_context_data(self):
+        categories = [item for item in site.categories if item.category is None]
 
-        if site.find_category_by_name_and_parent(data['name'], data['category_id']):
-            result['message'] = 'Course with this name already exist in this category'
-            result['status'] = 'error'
+        self.context = {
+            'title': 'New course',
+            'programs_list': categories,
+            'types_list': site.get_course_types(),
+        }
+        if not self.request.is_post:
+            self.result['status'] = ''
+        self.update_context_data(self.result)
 
-        raw_type = request.POST.get('type')
-        data['type'] = raw_type[0].strip() if raw_type else None
-        if data['type'] is None:
-            result['message'] = 'Course type not selected'
-            result['status'] = 'error'
+    def create_obj(self, data):
+        """ Process course data """
+        has_error = False
 
-        result['data'] = data
+        self.result['data']['name'] = data.get('name') if data.get('name') else ''
+        self.result['data']['type'] = data.get('type') if data.get('type') else ''
+        self.result['data']['category_id'] = int(data.get('category_id')) if data.get('category_id') else 0
+        self.result['data']['category'] = site.find_category_by_id(self.result['data']['category_id'])
 
-        return result
+        if not self.result['data']['category']:
+            self.result['message'] = 'Wrong program id'
+            has_error = True
+
+        if not self.result['data']['type']:
+            self.result['message'] = 'Course type not selected'
+
+        if self.result['data']['name']:
+            if site.find_course_by_name_and_category(self.result['data']['name'], self.result['data']['category_id']):
+                self.result['message'] = 'Course with this name already exist in this program'
+                has_error = True
+        else:
+            has_error = True
+
+        if not has_error:
+            course_object = site.create_course(
+                self.result['data']['type'],
+                self.result['data']['name'],
+                self.result['data']['category'])
+
+            course_object.observers.append(notifyer)
+
+            site.courses.append(course_object)
+            logger.log('debug', f'Create new course: {course_object.name}')
+
+            if self.result['data']['category_id']:
+                self.redirect_url = f"/programs/{self.result['data']['category_id']}/"
+            else:
+                self.redirect_url = '/programs/'
+
+
+@AppRoute(routes=routes, url='^/edit-course')
+class EditCourseCreateView(CreateView):
+    """ Edit course view """
+    template_name = "edit_course.html"
+
+    def __init__(self, request: Request):
+        super().__init__(request)
+
+        course_id = int(self.request.extra.get('id')) \
+            if self.request.extra.get('id') else None
+        self.course = site.find_course_by_id(course_id)
+
+        if not self.course:
+            self.redirect_url = '/404/'
+        else:
+            if not self.result['data']:
+                self.result['data'] = {
+                    'name': self.course.name,
+                    'type': self.course.type,
+                    'category_id': self.course.category.id
+                }
+
+    def set_context_data(self):
+        categories = [item for item in site.categories if item.category is None]
+
+        self.context = {
+            'title': f'Edit course',
+            'programs_list': categories,
+            'types_list': site.get_course_types(),
+        }
+
+        if not self.request.is_post:
+            self.result['status'] = ''
+        self.update_context_data(self.result)
+
+    def create_obj(self, data):
+        """ Process course data """
+        has_error = False
+
+        self.result['data']['name'] = data.get('name') if data.get('name') else ''
+        self.result['data']['type'] = data.get('type') if data.get('type') else ''
+        self.result['data']['category_id'] = int(data.get('category_id')) if data.get('category_id') else 0
+        self.result['data']['category'] = site.find_category_by_id(self.result['data']['category_id'])
+
+        if not self.result['data']['category']:
+            self.result['message'] = 'Wrong program id'
+            has_error = True
+
+        if not self.result['data']['type']:
+            self.result['message'] = 'Course type not selected'
+
+        if self.result['data']['name']:
+            search_course = site.find_course_by_name_and_category(self.result['data']['name'], self.result['data']['category_id'])
+            if search_course:
+                if search_course.id != self.course.id:
+                    self.result['message'] = 'Course with this name already exist in this program'
+                    has_error = True
+        else:
+            has_error = True
+
+        if not has_error:
+            # -- Update course data ----------------------------------
+            self.course.name = self.result['data']['name']
+            self.course.category = self.result['data']['category']
+
+            self.course.notify_course_users(f'{self.course.name}" course has been updated!')
+            self.result['status'] = 'success'
 
 
 class CopyCourse(View):
     """ View to copy a course """
-    def get(self, request: Request, *args, **kwargs) -> Response:
-        course_id = int(request.extra.get('id')) if request.extra.get('id') else None
+
+    def get(self, *args, **kwargs) -> Response:
+        course_id = int(self.request.extra.get('id')) \
+            if self.request.extra.get('id') else None
         course = site.find_course_by_id(course_id)
 
-        body = build_template(request, {}, f'course.html')
-        response = Response(request, body=body)
+        body = build_template(self.request, {}, f'course.html')
+        response = Response(self.request, body=body)
 
         if course is None:
             response.redirect('/404/')
@@ -366,20 +309,203 @@ class CopyCourse(View):
 
 class CoursePage(View):
     """ Course page view """
-    def get(self, request: Request, *args, **kwargs) -> Response:
+
+    def get(self, *args, **kwargs) -> Response:
         """ Course page rendering """
 
-        course_id = int(request.extra.get('id')) if request.extra.get('id') else None
+        course_id = int(self.request.extra.get('id')) \
+            if self.request.extra.get('id') else None
         course = site.find_course_by_id(course_id)
 
-        body = build_template(request, {
+        body = build_template(self.request, {
             'title': course.name if course else '',
             'url_param': f'{course.category.id}/' if course else '',
         }, f'course.html')
 
-        response = Response(request, body=body)
+        response = Response(self.request, body=body)
 
         if course is None:
             response.redirect('/404/')
 
         return response
+
+
+@AppRoute(routes=routes, url='^/programs/add')
+class CreateProgram(CreateView):
+    """ View for create program page """
+    template_name = "create_program.html"
+
+    def set_context_data(self):
+        categories = [item for item in site.categories if item.category is None]
+        self.context = {
+            'title': 'New program',
+            'programs_list': categories
+        }
+        if not self.request.is_post:
+            self.result['status'] = ''
+        self.update_context_data(self.result)
+
+    def create_obj(self, data):
+        """ Process program data """
+        has_error = False
+
+        self.result['data']['name'] = data.get('name') if data.get('name') else ''
+        self.result['data']['category_id'] = int(data.get('category_id')) if data.get('category_id') else 0
+        self.result['data']['category'] = site.find_category_by_id(self.result['data']['category_id'])
+
+        if self.result['data']['name']:
+            if site.find_category_by_name_and_parent(self.result['data']['name'], self.result['data']['category_id']):
+                self.result['message'] = 'Program with this name already exist in this category'
+                has_error = True
+        else:
+            has_error = True
+
+        if not has_error:
+            category_obj = site.create_category(self.result['data']['name'], self.result['data']['category'])
+            site.categories.append(category_obj)
+            logger.log('debug', f'Create new program: {category_obj.name}')
+            self.redirect_url = '/programs/'
+
+
+@AppRoute(routes=routes, url='^/programs')
+class ProgramsListView(ListView):
+    template_name = 'programs.html'
+
+    def set_context_data(self):
+        category_id = int(self.request.extra.get('id')) \
+            if self.request.extra.get('id') else None
+        category = site.find_category_by_id(category_id)
+        if category_id:
+            categories = list(
+                filter(lambda item: item.category.id == category_id if item.category else False, site.categories))
+        else:
+            categories = [item for item in site.categories if item.category is None]
+
+        self.set_queryset(categories)
+
+        self.context = {
+            'title': category.name if category else 'Programs',
+            'url_param': f'{category_id}/' if category_id else ''
+        }
+
+
+@AppRoute(routes=routes, url='^/students')
+class StudentListView(ListView):
+    queryset = site.students
+    template_name = 'students.html'
+
+    def set_context_data(self):
+        self.context = {
+            'title': 'Students list',
+        }
+
+
+@AppRoute(routes=routes, url='^/create_student')
+class StudentCreateView(CreateView):
+    """ View for create student page """
+    template_name = 'create_student.html'
+
+    def set_context_data(self):
+        self.context = {
+            'title': 'Create student',
+        }
+
+        if not self.request.is_post:
+            self.result['status'] = ''
+        self.update_context_data(self.result)
+
+    def create_obj(self, data):
+        """ Process student data """
+        has_error = False
+        if data.get('name'):
+            self.result['data']['name'] = data.get('name')
+
+            if site.get_student(self.result['data']['name']):
+                self.result['message'] = 'Student with this name already exists'
+                has_error = True
+        else:
+            has_error = True
+
+        if not has_error:
+            new_obj = site.create_user('student', self.result['data']['name'])
+            site.students.append(new_obj)
+            self.result = {
+                'message': 'Student has been added!',
+                'status': 'success',
+                'data': {},
+            }
+
+
+@AppRoute(routes=routes, url='^/api')
+class CourseApi(TemplateView):
+    template_name = 'json.html'
+
+    @Debug(name='CourseApi')
+    def set_context_data(self):
+        self.context = {
+            'json': BaseSerializer(site.courses).save()
+        }
+
+
+@AppRoute(routes=routes, url='^/student-courses')
+class StudentCoursesCreateView(CreateView):
+    """ View for changing student's courses list """
+    template_name = 'student_courses.html'
+
+    def __init__(self, request: Request):
+        super().__init__(request)
+
+        student_id = int(self.request.extra.get('id'))
+        student = site.find_student_by_id(student_id)
+        self.student = student
+
+    def set_context_data(self):
+        self.context = {
+            'title': 'Student courses',
+            'student': self.student,
+            'courses_list': site.courses,
+            'courses_ids': [course.id for course in self.student.courses if course]
+        }
+
+        if not self.request.is_post:
+            self.result['status'] = ''
+        self.update_context_data(self.result)
+
+    def create_obj(self, data):
+        """ Process form data """
+        has_error = False
+        courses_ids = []
+        courses = []
+
+        if not self.student:
+            has_error = True
+            self.result['message'] = 'Student not found'
+
+        if data.get('course_id'):
+            if isinstance(data.get('course_id'), list):
+                courses_ids = data.get('course_id')
+            else:
+                courses_ids.append(data.get('course_id'))
+
+            for course_id in courses_ids:
+                course = site.find_course_by_id(int(course_id))
+                if not course:
+                    has_error = True
+                    self.result['message'] = 'Course not found'
+                else:
+                    courses.append(course)
+
+        if not has_error:
+            if courses:
+                # -- Add student to selected courses --
+                for course in courses:
+                    course.add_student(self.student)
+            else:
+                # -- Remove student from all courses --
+                self.student.clear_courses()
+
+            self.result = {
+                'message': 'Courses list has been updated!',
+                'status': 'success',
+                'data': {},
+            }

@@ -5,7 +5,7 @@ EXTRA_PARAMS = re.compile(r'/(?P<id>\d+)/')
 
 
 class Request:
-    __slots__ = ('environ', 'GET', 'POST', 'settings', 'extra', 'url')
+    __slots__ = ('environ', 'GET', 'POST', 'settings', 'extra', 'url', 'is_post')
 
     """ Class to work with requests params """
 
@@ -17,6 +17,7 @@ class Request:
         self.extra = {}
         self.url = self._get_url()
         self.get_extra_params()
+        self.is_post = environ['REQUEST_METHOD'] == 'POST'
 
     def __getattr__(self, item):
         return self.extra.get(item)

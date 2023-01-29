@@ -1,11 +1,13 @@
-import datetime
 from copy import deepcopy
 from quopri import decodestring
+
+from patterns.behavioral_patterns import Subject
 
 
 class User:
     """ User class """
-    pass
+    def __init__(self, name):
+        self.name = name
 
 
 class Teacher(User):
@@ -15,20 +17,37 @@ class Teacher(User):
 
 class Student(User):
     """ Student class """
-    pass
+    auto_id = 1
+
+    def __init__(self, name):
+        self.id = Student.auto_id
+        Student.auto_id += 1
+        self.courses = []
+        super().__init__(name)
+
+    def clear_courses(self):
+        self._delete_student_from_courses()
+        self.courses = []
+
+    def _delete_student_from_courses(self):
+        for course in self.courses:
+            for student in course.students:
+                if self.id == student.id:
+                    course.students.remove(student)
+                    break
 
 
 class UserFactory:
     """ User creation class of type factory method """
     types = {
         'student': Student,
-        'teacher': Teacher
+        'teacher': Teacher,
     }
 
     @classmethod
-    def create(cls, type_):
+    def create(cls, type_, name):
         """ Creation pattern factory method """
-        return cls.types[type_]()
+        return cls.types[type_](name)
 
 
 class CoursePrototype:
@@ -37,7 +56,7 @@ class CoursePrototype:
         return deepcopy(self)
 
 
-class Course(CoursePrototype):
+class Course(CoursePrototype, Subject):
     auto_id = 1
     """ Course class """
 
@@ -48,16 +67,41 @@ class Course(CoursePrototype):
         self.category = category
         self.category.courses.append(self)
         self.field = field
+        self.students = []
+        super().__init__()
+
+    def __getitem__(self, item):
+        return self.students[item]
+
+    def add_student(self, student: Student):
+        if self._add_new_student(student) and self._add_new_students_course(student):
+            self.notify(f'"{student.name}" connected to a "{self.name}" course')
+
+    def _add_new_student(self, new_student: Student):
+        for student in self.students:
+            if student.id == new_student.id:
+                return False
+
+        self.students.append(new_student)
+        return True
+
+    def _add_new_students_course(self, student: Student):
+        for course in student.courses:
+            if course.id == self.id:
+                return False
+
+        student.courses.append(self)
+        return True
 
 
 class InteractiveCourse(Course):
     """ Interactive course class """
-    pass
+    type = 'interactive'
 
 
 class RecordCourse(Course):
     """ Recorded course class """
-    pass
+    type = 'record'
 
 
 class CourseFactory:
@@ -109,12 +153,16 @@ class Engine:
         self.categories = []
 
     @staticmethod
-    def create_user(type_):
-        return UserFactory.create(type_)
+    def create_user(type_, name):
+        return UserFactory.create(type_, name)
 
     @staticmethod
     def create_category(name, category=None):
         return Category(name, category)
+
+    @staticmethod
+    def create_course(type_, name, category, field: str = ''):
+        return CourseFactory.create(type_, name, category, field)
 
     def find_category_by_id(self, id):
         for item in self.categories:
@@ -133,15 +181,22 @@ class Engine:
 
         return False
 
-    @staticmethod
-    def create_course(type_, name, category, field: str = ''):
-        return CourseFactory.create(type_, name, category, field)
-
     def get_course_by_name(self, name):
         for item in self.courses:
             if item.name == name:
                 return item
         return None
+
+    def find_course_by_name_and_category(self, name: str, category_id: int):
+        for item in self.courses:
+            if item.name == name:
+                if item.category:
+                    if item.category.id == category_id:
+                        return item
+                else:
+                    return item
+
+        return False
 
     def find_course_by_id(self, id):
         for item in self.courses:
@@ -154,6 +209,18 @@ class Engine:
         val_b = bytes(val.replace('%', '=').replace("+", " "), 'UTF-8')
         val_decode_str = decodestring(val_b)
         return val_decode_str.decode('UTF-8')
+
+    def get_student(self, name) -> Student:
+        for item in self.students:
+            if item.name == name:
+                return item
+        return None
+
+    def find_student_by_id(self, id: int):
+        for item in self.students:
+            if item.id == id:
+                return item
+        return None
 
     def get_course_types(self) -> dict:
         return self._course_types
@@ -176,15 +243,3 @@ class SingletonByName(type):
         else:
             cls.__instance[name] = super().__call__(*args, **kwargs)
             return cls.__instance[name]
-
-
-class Logger(metaclass=SingletonByName):
-    """ Logger class """
-    def __init__(self, name):
-        self.name = name
-
-    def log(self, message_type: str = 'info', text: str = ''):
-        now = datetime.datetime.now()
-
-        with open(f'{self.name}.log', 'a+') as f:
-            f.write(f'{now:%Y-%m-%d %H:%M} [{message_type.upper()}]: {text}\n')

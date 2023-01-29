@@ -9,7 +9,9 @@
 <ol>
     {% for course in objects_list %}
     <li>
-        <a href="/course/{{ course.id }}/">{{ course.name }}</a> [<a class="text-warning" href="/copy-course/{{ course.id }}/">copy</a>]
+        <a href="/course/{{ course.id }}/">{{ course.name }}</a>
+        [<a class="text-warning" href="/copy-course/{{ course.id }}/">copy</a>]
+        [<a class="text-info" href="/edit-course/{{ course.id }}/">edit</a>]
     </li>
     {% endfor %}
 </ol>

@@ -1,23 +1,23 @@
 {% extends "base.html" %}
-{% block title %}New program{% endblock %}
+{% block title %}{{ title }}{% endblock %}
 {% block body %}
 <h1>Create new program</h1>
 <br>
 <form action="" method="post" class="row g-3 col-md-6 mt-5">
-    {% if form_status == 'error' %}
-    <div class="alert alert-danger" role="alert">{{ form_msg }}</div>
+    {% if status == 'error' %}
+    <div class="alert alert-danger" role="alert">{{ message }}</div>
     {% endif %}
     <div class="col-md-6">
         <label class="form-label">Program name</label>
         <input type="text" name="name" class="form-control" placeholder="Programming languages"
-               value="{% if form_data %}{{ form_data.name }}{% endif %}">
+               value="{% if data.name %}{{ data.name }}{% endif %}">
     </div>
     <!-- <div class="col-md-6">
         <label class="form-label">Parent program</label>
         <select name="category_id" class="form-select">
             <option value="0"> -- None -- </option>
-            {% if objects_list %}
-            {% for program in objects_list %}
+            {% if programs_list %}
+            {% for program in programs_list %}
             <option value="{{ program.id }}">{{ program.name }}</option>
             {% endfor %}
             {% endif %}
