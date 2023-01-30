@@ -6,14 +6,19 @@ from app.request import Request
 from app.response import Response
 from app.view import View, ListView, TemplateView, CreateView
 from app.jinja_engine import build_template
+from db.mappers import MapperRegistry
+from patterns.architectural_system_pattern_unit_of_work import UnitOfWork
 from patterns.behavioral_patterns import BaseSerializer, Notifier
 from patterns.structural_patterns import Debug, AppRoute
 
 from patterns.сreational_patterns import Engine
 
 site = Engine()
-logger = Logger('views')
-notifyer = Notifier()
+notifier = Notifier()
+
+UnitOfWork.new_current()
+UnitOfWork.get_current().set_mapper_registry(MapperRegistry)
+
 routes = []
 
 # -- ToDo: Remove this temp solution after db integration
@@ -23,10 +28,10 @@ if not site.categories:
 
 if not site.courses:
     new_course = site.create_course('record', 'Test course 1', new_category)
-    new_course.observers.append(notifyer)
+    new_course.observers.append(notifier)
     site.courses.append(new_course)
     new_course = site.create_course('record', 'Test course 2', new_category)
-    new_course.observers.append(notifyer)
+    new_course.observers.append(notifier)
     site.courses.append(new_course)
 
 if not site.students:
@@ -201,7 +206,7 @@ class CreateCourseCreateView(CreateView):
                 self.result['data']['name'],
                 self.result['data']['category'])
 
-            course_object.observers.append(notifyer)
+            course_object.observers.append(notifier)
 
             site.courses.append(course_object)
             logger.log('debug', f'Create new course: {course_object.name}')
@@ -391,8 +396,12 @@ class ProgramsListView(ListView):
 
 @AppRoute(routes=routes, url='^/students')
 class StudentListView(ListView):
-    queryset = site.students
+    # queryset = site.students
     template_name = 'students.html'
+
+    def get_queryset(self):
+        mapper = MapperRegistry.get_current_mapper('student')
+        return mapper.all()
 
     def set_context_data(self):
         self.context = {
@@ -429,6 +438,11 @@ class StudentCreateView(CreateView):
         if not has_error:
             new_obj = site.create_user('student', self.result['data']['name'])
             site.students.append(new_obj)
+
+            # -- Create db record in student table --------------
+            new_obj.mark_new()
+            UnitOfWork.get_current().commit()
+
             self.result = {
                 'message': 'Student has been added!',
                 'status': 'success',

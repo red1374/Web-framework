@@ -1,6 +1,7 @@
 from copy import deepcopy
 from quopri import decodestring
 
+from patterns.architectural_system_pattern_unit_of_work import DomainObject
 from patterns.behavioral_patterns import Subject
 
 
@@ -15,7 +16,7 @@ class Teacher(User):
     pass
 
 
-class Student(User):
+class Student(User, DomainObject):
     """ Student class """
     auto_id = 1
 

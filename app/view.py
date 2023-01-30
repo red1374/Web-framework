@@ -1,5 +1,3 @@
-from copy import copy
-
 from app.jinja_engine import build_template
 from app.request import Request
 from app.response import Response
