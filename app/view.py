@@ -2,13 +2,23 @@ from app.jinja_engine import build_template
 from app.request import Request
 from app.response import Response
 
+from db.mappers import Mapper, connection, MapperRegistry
+from patterns.architectural_system_pattern_unit_of_work import UnitOfWork
+
 # --- Behavioral patterns - Template method
 
 
 class View:
+    model = {}
+
     """ Base view class """
     def __init__(self, request: Request):
         self.request = request
+        self.connection = connection
+        if self.model:
+            self.mapper = Mapper(self.model, self.connection)
+            self.objects = UnitOfWork.get_current()
+            MapperRegistry.set_mapper(self.model)
 
     def get(self, *args, **kwargs) -> Response:
         pass

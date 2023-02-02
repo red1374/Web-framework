@@ -34,6 +34,7 @@ class App:
 
         if not static:
             # -- Getting view for current request if exists --
+
             view = self._get_view(environ)
             response = self._get_response(environ, view, request)
         else:

@@ -6,38 +6,18 @@ from app.request import Request
 from app.response import Response
 from app.view import View, ListView, TemplateView, CreateView
 from app.jinja_engine import build_template
-from db.mappers import MapperRegistry
-from patterns.architectural_system_pattern_unit_of_work import UnitOfWork
-from patterns.behavioral_patterns import BaseSerializer, Notifier
+from db.mappers import Mapper, connection
+from models import Student, Category, Course, StudentCourses
+from patterns.behavioral_patterns import BaseSerializer
 from patterns.structural_patterns import Debug, AppRoute
 
 from patterns.сreational_patterns import Engine
 
 site = Engine()
-notifier = Notifier()
 
-UnitOfWork.new_current()
-UnitOfWork.get_current().set_mapper_registry(MapperRegistry)
+logger = Logger('views')
 
 routes = []
-
-# -- ToDo: Remove this temp solution after db integration
-if not site.categories:
-    new_category = site.create_category('Test', None)
-    site.categories.append(new_category)
-
-if not site.courses:
-    new_course = site.create_course('record', 'Test course 1', new_category)
-    new_course.observers.append(notifier)
-    site.courses.append(new_course)
-    new_course = site.create_course('record', 'Test course 2', new_category)
-    new_course.observers.append(notifier)
-    site.courses.append(new_course)
-
-if not site.students:
-    new_student = site.create_user('student', 'Test student')
-    site.students.append(new_student)
-# --------------------------------------------------------
 
 
 @AppRoute(routes=routes, url='^$')
@@ -146,32 +126,40 @@ class CoursesListView(ListView):
     def set_context_data(self):
         category_id = int(self.request.extra.get('id')) \
             if self.request.extra.get('id') else None
-        category = site.find_category_by_id(category_id)
 
-        if category is None:
+        category_mapper = Mapper(Category, self.connection)
+        category = category_mapper.get_one({'id': category_id})
+
+        if not category:
             self.redirect_url = '/404/'
             return {}
 
-        self.set_queryset(category.courses if category else None)
+        courses = category.courses(Mapper(Course, self.connection))
+        self.set_queryset(courses)
         self.context = {
-            'title': 'Courses' + (' of program ' + category.name if category else ''),
-            'url_param': f'{category_id}/' if category_id else '',
-            'id': category.id if category else None,
+            'title': 'Courses of a program ' + category.name,
+            'url_param': f'{category_id}/',
+            'id': category_id,
         }
 
 
 @AppRoute(routes=routes, url='^/create_course')
-class CreateCourseCreateView(CreateView):
+class CourseCreateView(CreateView):
+    model = Course
     """ Create course view """
     template_name = "create_course.html"
 
+    def __init__(self, request: Request):
+        super().__init__(request)
+        self.category_mapper = Mapper(Category, self.connection)
+
     def set_context_data(self):
-        categories = [item for item in site.categories if item.category is None]
+        categories = self.category_mapper.find({'parent_id': 0})
 
         self.context = {
             'title': 'New course',
             'programs_list': categories,
-            'types_list': site.get_course_types(),
+            'types_list': self.model.get_course_types(),
         }
         if not self.request.is_post:
             self.result['status'] = ''
@@ -184,31 +172,36 @@ class CreateCourseCreateView(CreateView):
         self.result['data']['name'] = data.get('name') if data.get('name') else ''
         self.result['data']['type'] = data.get('type') if data.get('type') else ''
         self.result['data']['category_id'] = int(data.get('category_id')) if data.get('category_id') else 0
-        self.result['data']['category'] = site.find_category_by_id(self.result['data']['category_id'])
 
-        if not self.result['data']['category']:
+        category = self.category_mapper.get_one({'id': self.result['data']['category_id']})
+        if not category:
             self.result['message'] = 'Wrong program id'
             has_error = True
 
         if not self.result['data']['type']:
             self.result['message'] = 'Course type not selected'
+            has_error = True
 
-        if self.result['data']['name']:
-            if site.find_course_by_name_and_category(self.result['data']['name'], self.result['data']['category_id']):
+        if self.result['data']['name'] and not has_error:
+            course = self.mapper.get_one({
+                'name': self.result['data']['name'],
+                'category_id': category.id
+            })
+            if course:
                 self.result['message'] = 'Course with this name already exist in this program'
                 has_error = True
         else:
             has_error = True
 
         if not has_error:
-            course_object = site.create_course(
-                self.result['data']['type'],
-                self.result['data']['name'],
-                self.result['data']['category'])
+            course_object = self.model({
+                'name': self.result['data']['name'],
+                'category_id': self.result['data']['category_id'],
+                'type': self.result['data']['type'],
+            })
+            course_object.mark_new()
+            self.objects.commit()
 
-            course_object.observers.append(notifier)
-
-            site.courses.append(course_object)
             logger.log('debug', f'Create new course: {course_object.name}')
 
             if self.result['data']['category_id']:
@@ -220,6 +213,7 @@ class CreateCourseCreateView(CreateView):
 @AppRoute(routes=routes, url='^/edit-course')
 class EditCourseCreateView(CreateView):
     """ Edit course view """
+    model = Course
     template_name = "edit_course.html"
 
     def __init__(self, request: Request):
@@ -227,7 +221,7 @@ class EditCourseCreateView(CreateView):
 
         course_id = int(self.request.extra.get('id')) \
             if self.request.extra.get('id') else None
-        self.course = site.find_course_by_id(course_id)
+        self.course = self.mapper.get_one({'id': course_id})
 
         if not self.course:
             self.redirect_url = '/404/'
@@ -236,16 +230,17 @@ class EditCourseCreateView(CreateView):
                 self.result['data'] = {
                     'name': self.course.name,
                     'type': self.course.type,
-                    'category_id': self.course.category.id
+                    'category_id': self.course.category_id
                 }
+            self.category_mapper = Mapper(Category, connection)
 
     def set_context_data(self):
-        categories = [item for item in site.categories if item.category is None]
+        categories = self.category_mapper.find({'parent_id': 0})
 
         self.context = {
             'title': f'Edit course',
             'programs_list': categories,
-            'types_list': site.get_course_types(),
+            'types_list': Course.get_course_types(),
         }
 
         if not self.request.is_post:
@@ -259,9 +254,9 @@ class EditCourseCreateView(CreateView):
         self.result['data']['name'] = data.get('name') if data.get('name') else ''
         self.result['data']['type'] = data.get('type') if data.get('type') else ''
         self.result['data']['category_id'] = int(data.get('category_id')) if data.get('category_id') else 0
-        self.result['data']['category'] = site.find_category_by_id(self.result['data']['category_id'])
+        category = self.category_mapper.get_one({'id': self.result['data']['category_id']})
 
-        if not self.result['data']['category']:
+        if not category:
             self.result['message'] = 'Wrong program id'
             has_error = True
 
@@ -269,7 +264,10 @@ class EditCourseCreateView(CreateView):
             self.result['message'] = 'Course type not selected'
 
         if self.result['data']['name']:
-            search_course = site.find_course_by_name_and_category(self.result['data']['name'], self.result['data']['category_id'])
+            search_course = self.mapper.get_one({
+                'name': self.result['data']['name'],
+                'category_id': self.result['data']['category_id']
+            })
             if search_course:
                 if search_course.id != self.course.id:
                     self.result['message'] = 'Course with this name already exist in this program'
@@ -280,19 +278,22 @@ class EditCourseCreateView(CreateView):
         if not has_error:
             # -- Update course data ----------------------------------
             self.course.name = self.result['data']['name']
-            self.course.category = self.result['data']['category']
+            self.course.category_id = self.result['data']['category_id']
 
-            self.course.notify_course_users(f'{self.course.name}" course has been updated!')
+            self.course.mark_changed()
+            self.objects.commit()
+            # self.course.notify_course_users(f'{self.course.name}" course has been updated!')
             self.result['status'] = 'success'
 
 
 class CopyCourse(View):
+    model = Course
     """ View to copy a course """
 
     def get(self, *args, **kwargs) -> Response:
         course_id = int(self.request.extra.get('id')) \
             if self.request.extra.get('id') else None
-        course = site.find_course_by_id(course_id)
+        course = self.mapper.get_one({'id': course_id})
 
         body = build_template(self.request, {}, f'course.html')
         response = Response(self.request, body=body)
@@ -302,46 +303,50 @@ class CopyCourse(View):
         else:
             new_course = course.clone()
             new_course.name = f'copy_{course.name}'
-            new_course.id = new_course.auto_id
-            new_course.auto_id += 1
+            last_id = self.mapper.get_last_id()
+            new_course.id = last_id + 1
 
-            site.courses.append(new_course)
-            logger.log('debug', f'Course been copied: {course.name}')
-            response.redirect(f'/programs/{course.category.id}/')
+            new_course.mark_new()
+            self.objects.commit()
+
+            logger.log('debug', f'Course been copied: {new_course.name}')
+            response.redirect(f'/programs/{course.category_id}/')
 
         return response
 
 
 class CoursePage(View):
     """ Course page view """
+    model = Course
 
     def get(self, *args, **kwargs) -> Response:
         """ Course page rendering """
 
         course_id = int(self.request.extra.get('id')) \
             if self.request.extra.get('id') else None
-        course = site.find_course_by_id(course_id)
+        course = self.mapper.get_one({'id': course_id})
 
         body = build_template(self.request, {
             'title': course.name if course else '',
-            'url_param': f'{course.category.id}/' if course else '',
+            'url_param': f'{course.category_id}/' if course else '',
         }, f'course.html')
 
         response = Response(self.request, body=body)
 
-        if course is None:
+        if not course:
             response.redirect('/404/')
 
         return response
 
 
 @AppRoute(routes=routes, url='^/programs/add')
-class CreateProgram(CreateView):
+class ProgramCreateView(CreateView):
     """ View for create program page """
+    model = Category
     template_name = "create_program.html"
 
     def set_context_data(self):
-        categories = [item for item in site.categories if item.category is None]
+        categories = self.mapper.find({'parent_id': ''})
         self.context = {
             'title': 'New program',
             'programs_list': categories
@@ -356,35 +361,38 @@ class CreateProgram(CreateView):
 
         self.result['data']['name'] = data.get('name') if data.get('name') else ''
         self.result['data']['category_id'] = int(data.get('category_id')) if data.get('category_id') else 0
-        self.result['data']['category'] = site.find_category_by_id(self.result['data']['category_id'])
 
         if self.result['data']['name']:
-            if site.find_category_by_name_and_parent(self.result['data']['name'], self.result['data']['category_id']):
+            category = self.mapper.get_one({
+                'name': self.result['data']['name'],
+                'parent_id': self.result['data']['category_id']})
+            if category:
                 self.result['message'] = 'Program with this name already exist in this category'
                 has_error = True
         else:
             has_error = True
 
         if not has_error:
-            category_obj = site.create_category(self.result['data']['name'], self.result['data']['category'])
-            site.categories.append(category_obj)
+            category_obj = self.model({
+                'name': self.result['data']['name'],
+                'parent_id': self.result['data']['category_id']})
+            category_obj.mark_new()
+            self.objects.commit()
+
             logger.log('debug', f'Create new program: {category_obj.name}')
             self.redirect_url = '/programs/'
 
 
 @AppRoute(routes=routes, url='^/programs')
-class ProgramsListView(ListView):
+class ProgramListView(ListView):
+    model = Category
     template_name = 'programs.html'
 
     def set_context_data(self):
         category_id = int(self.request.extra.get('id')) \
-            if self.request.extra.get('id') else None
-        category = site.find_category_by_id(category_id)
-        if category_id:
-            categories = list(
-                filter(lambda item: item.category.id == category_id if item.category else False, site.categories))
-        else:
-            categories = [item for item in site.categories if item.category is None]
+            if self.request.extra.get('id') else 0
+        category = self.mapper.get_one({'id': category_id})
+        categories = self.mapper.find({'parent_id': category_id})
 
         self.set_queryset(categories)
 
@@ -396,12 +404,11 @@ class ProgramsListView(ListView):
 
 @AppRoute(routes=routes, url='^/students')
 class StudentListView(ListView):
-    # queryset = site.students
+    model = Student
     template_name = 'students.html'
 
     def get_queryset(self):
-        mapper = MapperRegistry.get_current_mapper('student')
-        return mapper.all()
+        return self.mapper.all()
 
     def set_context_data(self):
         self.context = {
@@ -412,6 +419,7 @@ class StudentListView(ListView):
 @AppRoute(routes=routes, url='^/create_student')
 class StudentCreateView(CreateView):
     """ View for create student page """
+    model = Student
     template_name = 'create_student.html'
 
     def set_context_data(self):
@@ -429,19 +437,17 @@ class StudentCreateView(CreateView):
         if data.get('name'):
             self.result['data']['name'] = data.get('name')
 
-            if site.get_student(self.result['data']['name']):
+            result = self.mapper.get_one({'name': self.result['data']['name']})
+            if result:
                 self.result['message'] = 'Student with this name already exists'
                 has_error = True
         else:
             has_error = True
 
         if not has_error:
-            new_obj = site.create_user('student', self.result['data']['name'])
-            site.students.append(new_obj)
-
             # -- Create db record in student table --------------
-            new_obj.mark_new()
-            UnitOfWork.get_current().commit()
+            self.model({'name': self.result['data']['name']}).mark_new()
+            self.objects.commit()
 
             self.result = {
                 'message': 'Student has been added!',
@@ -452,33 +458,39 @@ class StudentCreateView(CreateView):
 
 @AppRoute(routes=routes, url='^/api')
 class CourseApi(TemplateView):
+    model = Course
     template_name = 'json.html'
 
     @Debug(name='CourseApi')
     def set_context_data(self):
+        courses = self.mapper.all()
         self.context = {
-            'json': BaseSerializer(site.courses).save()
+            'json': BaseSerializer(courses).save()
         }
 
 
 @AppRoute(routes=routes, url='^/student-courses')
 class StudentCoursesCreateView(CreateView):
     """ View for changing student's courses list """
+    model = StudentCourses
     template_name = 'student_courses.html'
 
     def __init__(self, request: Request):
         super().__init__(request)
 
         student_id = int(self.request.extra.get('id'))
-        student = site.find_student_by_id(student_id)
-        self.student = student
+        self.student_mapper = Mapper(Student, self.connection)
+        self.courses_mapper = Mapper(Course, self.connection)
+        self.student_courses_mapper = Mapper(StudentCourses, self.connection)
+
+        self.student = self.student_mapper.get_one({'id': student_id})
 
     def set_context_data(self):
         self.context = {
             'title': 'Student courses',
             'student': self.student,
-            'courses_list': site.courses,
-            'courses_ids': [course.id for course in self.student.courses if course]
+            'courses_list': self.courses_mapper.all(),
+            'courses_ids': self.student.courses_ids(self.student_courses_mapper)
         }
 
         if not self.request.is_post:
@@ -501,22 +513,26 @@ class StudentCoursesCreateView(CreateView):
             else:
                 courses_ids.append(data.get('course_id'))
 
-            for course_id in courses_ids:
-                course = site.find_course_by_id(int(course_id))
-                if not course:
-                    has_error = True
-                    self.result['message'] = 'Course not found'
-                else:
-                    courses.append(course)
+            courses = self.courses_mapper.find({'id': courses_ids})
+            if not len(courses):
+                has_error = True
+                self.result['message'] = 'Course not found'
 
         if not has_error:
-            if courses:
+            if len(courses):
                 # -- Add student to selected courses --
                 for course in courses:
-                    course.add_student(self.student)
+                    StudentCourses({
+                        'student_id': self.student.id,
+                        'course_id': course.id
+                    }).mark_new()
+                self.objects.commit()
             else:
                 # -- Remove student from all courses --
-                self.student.clear_courses()
+                student_courses = self.student_courses_mapper.find({'student_id': self.student.id})
+                for item in student_courses:
+                    item.mark_removed()
+                self.objects.commit()
 
             self.result = {
                 'message': 'Courses list has been updated!',
