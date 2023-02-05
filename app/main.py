@@ -4,6 +4,7 @@ import re
 from typing import List, Type
 import mimetypes
 
+from app.site_engine import Engine
 from app.urls import Url
 from app.exceptions import NotFoundException, NotAllowedException
 from app.view import View
@@ -107,7 +108,9 @@ class App:
         if not hasattr(view, method):
             raise NotAllowedException
 
-        view_object = view(request)
+        site = Engine('patterns.sqlite')
+
+        view_object = view(request, site)
         return getattr(view_object, method)()
 
     def _apply_middleware_to_request(self, request: Request):

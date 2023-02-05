@@ -20,9 +20,19 @@ CREATE TABLE course (
     id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL UNIQUE,
     name VARCHAR (32),
     category_id INTEGER DEFAULT 0,
-    cType TEXT CHECK(cType IN ('record','interactive') )  NOT NULL DEFAULT 'record',
-    FOREIGN KEY (category_id) REFERENCES category(id)
+    cType INTEGER NOT NULL,
+    FOREIGN KEY (category_id) REFERENCES category(id),
+    FOREIGN KEY (cType) REFERENCES course_type(id)
 );
+
+DROP TABLE IF EXISTS course_type;
+CREATE TABLE course_type (
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL UNIQUE,
+    name VARCHAR (32) NOT NULL,
+    code VARCHAR (32) NOT NULL
+);
+INSERT INTO course_type(id, name, code) VALUES (1, 'Record', 'record');
+INSERT INTO course_type(id, name, code) VALUES (2, 'Interactive', 'interactive');
 
 DROP TABLE IF EXISTS student_courses;
 CREATE TABLE student_courses (

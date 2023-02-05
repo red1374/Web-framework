@@ -1,6 +1,8 @@
 # Web-framework
 WSGI Python web framework
 
+O. Before starting the Project you need to create a database by executing script <code>/db/create_db.py</code>.
+
 I. To start working with the service open terminal, go to the project working directory and run gunicorn server:
 
 <code># cd /mnt/disk_label/path_to_project/</code>

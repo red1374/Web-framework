@@ -1,17 +1,18 @@
 from time import time
+from jsonpickle import dumps, loads
 
-from app.urls import Url
 
+class BaseSerializer:
+    """ Class to serialize object to json and back"""
+    def __init__(self, obj):
+        self.obj = obj
 
-class AppRoute:
-    """ Structure pattern decorator for app routing """
-    def __init__(self, routes, url):
-        self.routes = routes
-        self.url = url
+    def save(self):
+        return dumps(self.obj)
 
-    def __call__(self, cls):
-        """ Add new route with view class name """
-        self.routes.append(Url(self.url, cls))
+    @staticmethod
+    def load(data):
+        return loads(data)
 
 
 class Debug:

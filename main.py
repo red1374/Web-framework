@@ -6,8 +6,7 @@ from views import routes
 
 settings = {
     'BASE_DIR': os.path.dirname(os.path.abspath(__file__)),
-    # 'TEMPLATE_DIR': 'templates',
-    'TEMPLATE_DIR': 'templates_jinja',
+    'TEMPLATE_DIR': 'templates',
 }
 app = App(
     urls=urlpatterns + routes,
@@ -15,7 +14,5 @@ app = App(
     middlewares=middlewares
 )
 
-
 fake_app = FakeApp()
-
 logger_app = LoggerApp()

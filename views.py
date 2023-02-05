@@ -4,16 +4,13 @@ from datetime import datetime
 from app.logger import Logger
 from app.request import Request
 from app.response import Response
+from app.site_engine import Engine
 from app.view import View, ListView, TemplateView, CreateView
-from app.jinja_engine import build_template
-from db.mappers import Mapper, connection
+from app.template_engine import build_template
+from app.model import Mapper
 from models import Student, Category, Course, StudentCourses
-from patterns.behavioral_patterns import BaseSerializer
-from patterns.structural_patterns import Debug, AppRoute
-
-from patterns.сreational_patterns import Engine
-
-site = Engine()
+from app.utils import BaseSerializer, Debug
+from app.urls import AppRoute
 
 logger = Logger('views')
 
@@ -149,8 +146,8 @@ class CourseCreateView(CreateView):
     """ Create course view """
     template_name = "create_course.html"
 
-    def __init__(self, request: Request):
-        super().__init__(request)
+    def __init__(self, request: Request, site: Engine):
+        super().__init__(request, site)
         self.category_mapper = Mapper(Category, self.connection)
 
     def set_context_data(self):
@@ -159,7 +156,7 @@ class CourseCreateView(CreateView):
         self.context = {
             'title': 'New course',
             'programs_list': categories,
-            'types_list': self.model.get_course_types(),
+            'types_list': self.model.get_course_types(self.connection),
         }
         if not self.request.is_post:
             self.result['status'] = ''
@@ -197,8 +194,9 @@ class CourseCreateView(CreateView):
             course_object = self.model({
                 'name': self.result['data']['name'],
                 'category_id': self.result['data']['category_id'],
-                'type': self.result['data']['type'],
+                'cType': self.result['data']['type'],
             })
+
             course_object.mark_new()
             self.objects.commit()
 
@@ -216,8 +214,8 @@ class EditCourseCreateView(CreateView):
     model = Course
     template_name = "edit_course.html"
 
-    def __init__(self, request: Request):
-        super().__init__(request)
+    def __init__(self, request: Request, site: Engine):
+        super().__init__(request, site)
 
         course_id = int(self.request.extra.get('id')) \
             if self.request.extra.get('id') else None
@@ -232,7 +230,7 @@ class EditCourseCreateView(CreateView):
                     'type': self.course.type,
                     'category_id': self.course.category_id
                 }
-            self.category_mapper = Mapper(Category, connection)
+            self.category_mapper = Mapper(Category, self.connection)
 
     def set_context_data(self):
         categories = self.category_mapper.find({'parent_id': 0})
@@ -240,7 +238,7 @@ class EditCourseCreateView(CreateView):
         self.context = {
             'title': f'Edit course',
             'programs_list': categories,
-            'types_list': Course.get_course_types(),
+            'types_list': self.model.get_course_types(self.connection),
         }
 
         if not self.request.is_post:
@@ -301,15 +299,14 @@ class CopyCourse(View):
         if course is None:
             response.redirect('/404/')
         else:
-            new_course = course.clone()
-            new_course.name = f'copy_{course.name}'
+            course.name = f'copy_{course.name}'
             last_id = self.mapper.get_last_id()
-            new_course.id = last_id + 1
+            course.id = last_id + 1
 
-            new_course.mark_new()
+            course.mark_new()
             self.objects.commit()
 
-            logger.log('debug', f'Course been copied: {new_course.name}')
+            logger.log('debug', f'Course been copied: {course.name}')
             response.redirect(f'/programs/{course.category_id}/')
 
         return response
@@ -475,8 +472,8 @@ class StudentCoursesCreateView(CreateView):
     model = StudentCourses
     template_name = 'student_courses.html'
 
-    def __init__(self, request: Request):
-        super().__init__(request)
+    def __init__(self, request: Request, site: Engine):
+        super().__init__(request, site)
 
         student_id = int(self.request.extra.get('id'))
         self.student_mapper = Mapper(Student, self.connection)

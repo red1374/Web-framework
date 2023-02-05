@@ -1,8 +1,7 @@
-from app.model import Model
-from patterns.сreational_patterns import User, CoursePrototype
+from app.model import Model, Mapper
 
 
-class Student(Model, User):
+class Student(Model):
     table_name = 'student'
     fields = ('id', 'name')
 
@@ -11,7 +10,6 @@ class Student(Model, User):
 
 
 class Category(Model):
-    """ Category class """
     table_name = 'category'
     fields = ('id', 'name', 'parent_id')
 
@@ -19,26 +17,24 @@ class Category(Model):
         return mapper.find({'category_id': self.id})
 
 
-class Course(Model, CoursePrototype):
+class Course(Model):
     table_name = 'course'
     fields = ('id', 'name', 'category_id', 'cType')
-    types = [
-        {
-            'code': 'record',
-            'name': 'Record',
-        }, {
-            'code': 'interactive',
-            'name': 'Interactive',
-        }
-    ]
 
     @property
     def type(self):
         return self.cType
 
     @staticmethod
-    def get_course_types():
-        return Course.types
+    def get_course_types(connection):
+        course_types_mapper = Mapper(CourseTypes, connection)
+
+        return [{'code': item.id, 'name': item.name} for item in course_types_mapper.all()]
+
+
+class CourseTypes(Model):
+    table_name = 'course_type'
+    fields = ('id', 'name', 'code')
 
 
 class StudentCourses(Model):

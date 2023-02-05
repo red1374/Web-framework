@@ -1,20 +1,17 @@
-from app.jinja_engine import build_template
+from app.site_engine import Engine
+from app.template_engine import build_template
+from app.model import Mapper, UnitOfWork, MapperRegistry
 from app.request import Request
 from app.response import Response
-
-from db.mappers import Mapper, connection, MapperRegistry
-from patterns.architectural_system_pattern_unit_of_work import UnitOfWork
-
-# --- Behavioral patterns - Template method
 
 
 class View:
     model = {}
 
     """ Base view class """
-    def __init__(self, request: Request):
+    def __init__(self, request: Request, site: Engine):
         self.request = request
-        self.connection = connection
+        self.connection = site.connection
         if self.model:
             self.mapper = Mapper(self.model, self.connection)
             self.objects = UnitOfWork.get_current()
@@ -66,11 +63,9 @@ class TemplateView(View):
     def post(self, *args, **kwargs) -> Response:
         return self.render_template_with_context()
 
-    # def __call__(self, request):
-    #     return self.render_template_with_context()
-
 
 class ListView(TemplateView):
+    """ View class for items list """
     queryset = []
     context_object_name = 'objects_list'
 
@@ -95,10 +90,11 @@ class ListView(TemplateView):
 
 
 class CreateView(TemplateView):
+    """ View class for item creation """
     template_name = 'create.html'
 
-    def __init__(self, request: Request):
-        super().__init__(request)
+    def __init__(self, request: Request, site: Engine):
+        super().__init__(request, site)
         self.result = self.get_default_result()
 
     def get_default_result(self):
