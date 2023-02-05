@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block body %}
+<h1>Contacts</h1>
+<br>
+<h2>Leave your message to us, and we contact with you soon</h2>
+
+<form action="" method="post" class="row g-3 col-md-6 mt-5">
+    {% if status == 'error' %}
+    <div class="alert alert-danger" role="alert">{{ message }}</div>
+    {% endif %}
+    {% if status == 'success' %}
+    <div class="alert alert-success" role="alert">Message been sent</div>
+    {% endif %}
+    <div class="col-md-12">
+        <label class="form-label">Full name</label>
+        <input type="text" name="name" class="form-control" placeholder="Smith Jhon Jr"
+               value="{% if data.name %}{{ data.name }}{% endif %}">
+    </div>
+    <div class="col-md-6">
+        <label class="form-label">Topic</label>
+        <input type="text" name="topic" class="form-control" placeholder="I want to now how ..."
+               value="{% if data.topic %}{{ data.topic }}{% endif %}">
+    </div>
+    <div class="col-md-6">
+        <label class="form-label">E-mail address</label>
+        <input type="email" name="email" class="form-control" placeholder="name@example.com"
+               value="{% if data.email %}{{ data.email }}{% endif %}">
+    </div>
+    <div class="col-md-12">
+      <label class="form-label">Type your message</label>
+      <textarea class="form-control" name="text" rows="3" placeholder="Message ...">{% if data.text %}{{ data.text }}{% endif %}</textarea>
+    </div>
+    <div class="col-12">
+        <button type="submit" class="btn btn-primary">Send</button>
+    </div>
+</form>
+{% endblock %}

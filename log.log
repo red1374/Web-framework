@@ -1,0 +1,49 @@
+2023-01-28 23:54 [INFO]: Simple page rendered: about
+2023-01-29 18:44 [DEBUG]: Create new course: aaaa
+2023-01-29 19:04 [DEBUG]: Create new course: sss
+2023-01-29 19:16 [DEBUG]: Create new course: aaaa
+2023-01-29 19:36 [DEBUG]: Create new course: aaaaa
+2023-01-31 15:58 [INFO]: Simple page rendered: about
+2023-01-31 15:59 [INFO]: Simple page rendered: about
+2023-01-31 22:55 [INFO]: Simple page rendered: about
+2023-01-31 22:57 [INFO]: Simple page rendered: about
+2023-02-02 12:46 [DEBUG]: Create new program: Test category
+2023-02-02 12:54 [DEBUG]: Create new program: Test
+2023-02-02 12:56 [DEBUG]: Create new program: Test 1
+2023-02-02 15:12 [DEBUG]: Create new program: Test 2
+2023-02-02 16:33 [DEBUG]: Create new program: Test 1
+2023-02-02 16:54 [DEBUG]: Create new course: Test course
+2023-02-02 16:58 [DEBUG]: Create new course: Test
+2023-02-02 17:42 [INFO]: Simple page rendered: about
+2023-02-02 18:14 [DEBUG]: Create new program: Test 5
+2023-02-02 18:19 [DEBUG]: Create new program: ii
+2023-02-02 18:19 [DEBUG]: Create new course: 212
+2023-02-02 18:51 [DEBUG]: Course been copied: Test course 3
+2023-02-02 18:52 [DEBUG]: Create new course: Course 555
+2023-02-02 18:52 [DEBUG]: Course been copied: Course 555
+2023-02-02 18:52 [INFO]: Simple page rendered: about
+2023-02-02 19:15 [DEBUG]: Create new program: Test 1
+2023-02-02 19:15 [DEBUG]: Create new course: Test course
+2023-02-02 19:16 [DEBUG]: Create new course: aaa
+2023-02-02 19:16 [DEBUG]: Course been copied: aaa
+2023-02-02 20:46 [DEBUG]: Create new program: asda
+2023-02-02 20:47 [DEBUG]: Create new course: asdasd
+2023-02-02 20:47 [DEBUG]: Course been copied: copy_asdasd
+2023-02-02 20:48 [INFO]: Simple page rendered: about
+2023-02-05 19:23 [INFO]: Simple page rendered: about
+2023-02-05 19:23 [INFO]: Simple page rendered: about
+2023-02-05 19:27 [INFO]: Simple page rendered: about
+2023-02-05 19:39 [DEBUG]: Create new program: aaaaaaaaaaaaaa
+2023-02-05 19:39 [DEBUG]: Create new course: dfdfd
+2023-02-05 19:39 [INFO]: Simple page rendered: about
+2023-02-05 20:26 [DEBUG]: Course been copied: copy_Test course 2
+2023-02-05 20:27 [DEBUG]: Create new program: aaaa
+2023-02-05 20:27 [DEBUG]: Create new course: sssssssssssssssss
+2023-02-05 20:27 [INFO]: Simple page rendered: about
+2023-02-05 20:42 [DEBUG]: Create new program: Program 1
+2023-02-05 20:44 [DEBUG]: Create new program: Program 1
+2023-02-05 20:48 [DEBUG]: Create new course: Course 1
+2023-02-05 20:50 [DEBUG]: Create new course: Test 2
+2023-02-05 20:52 [DEBUG]: Create new course: www
+2023-02-05 20:53 [DEBUG]: Create new course: aa
+2023-02-05 20:55 [INFO]: Simple page rendered: about
